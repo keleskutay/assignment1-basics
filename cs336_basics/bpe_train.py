@@ -1,6 +1,11 @@
 import os
 from typing import BinaryIO
 
+#regex based pre-tokenizer used by GPT2
+
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+
+
 def find_chunk_boundaries(
     file: BinaryIO,
     desired_num_chunks: int,

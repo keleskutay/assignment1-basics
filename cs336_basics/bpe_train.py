@@ -54,9 +54,19 @@ def find_chunk_boundaries(
     # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
     return sorted(set(chunk_boundaries))
 
+def find_sum_pairs(token_freqs: dict[tuple[bytes], int]):
+    """ Find frequencies of byte pairs from the coarse-grained frequencies table"""
+    pairs: dict[tuple[bytes, bytes], int] = defaultdict(int)
+
+    for symbols,freqs in token_freqs.items():
+        pass
+
+
 def pre_tokenize_chunk(chunk: str, special_tokens: list[str]) -> dict[tuple[bytes], int]:
-    """Before running pre-tokenization chunk split on special tokens then apply regex-based pre-tokenizer used by GPT2"""
-    token_counts: dict[tuple[bytes], int] = defaultdict(int)
+    """Before running pre-tokenization chunk split on special tokens then apply regex-based pre-tokenizer used by GPT2
+        final output e.g. {(b'l', b'o',b 'w', b'e', b'r'): 12, (b'h', b'i',b'g', b'h'): 3, ...}
+    """
+    token_freqs: dict[tuple[bytes], int] = defaultdict(int)
 
     escape = [re.escape(t) for t in special_tokens]
     pattern = f"{'|'.join(escape)}"
@@ -65,20 +75,22 @@ def pre_tokenize_chunk(chunk: str, special_tokens: list[str]) -> dict[tuple[byte
     for sub_chunk in sub_chunks:
         for match in re.compile(PAT).findall(sub_chunk):
             match_bytes: tuple = tuple(bytes([i]) for i in match.encode("utf-8"))
-            token_counts[match_bytes] +=1
+            token_freqs[match_bytes] +=1
     
-    return token_counts
+    return token_freqs
 
 
 def pre_tokenize(input_path: str | os.PathLike, special_tokens: list[str]):
     """Split file into chunks and apply pre-tokenizer for chunks"""
     with open(input_path, "rb") as __file:
-        boundaries = find_chunk_boundaries(__file, 4, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(__file, 1, b"<|endoftext|>")
 
         for start,end in zip(boundaries[:-1], boundaries[1:]):
             __file.seek(start)
             chunk = __file.read(end - start).decode("utf-8", errors="ignore")
-            freqs = pre_tokenize_chunk(chunk, special_tokens)
+            token_freqs = pre_tokenize_chunk(chunk, special_tokens)
+
+            find_sum_pairs(token_freqs)
 
 
 def _initialize_vocab(special_tokens: list[str]) -> dict[int,bytes]:

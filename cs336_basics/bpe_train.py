@@ -56,10 +56,11 @@ def find_chunk_boundaries(
 
 def find_sum_pairs(token_freqs: dict[tuple[bytes], int]):
     """ Find frequencies of byte pairs from the coarse-grained frequencies table"""
-    pairs: dict[tuple[bytes, bytes], int] = defaultdict(int)
-
+    pair_freqs: dict[tuple[bytes, bytes], int] = defaultdict(int)
     for symbols,freqs in token_freqs.items():
-        pass
+        for pair in zip(symbols, symbols[1:]):
+            pair_freqs[pair] += freqs
+    return pair_freqs
 
 
 def pre_tokenize_chunk(chunk: str, special_tokens: list[str]) -> dict[tuple[bytes], int]:
@@ -90,7 +91,7 @@ def pre_tokenize(input_path: str | os.PathLike, special_tokens: list[str]):
             chunk = __file.read(end - start).decode("utf-8", errors="ignore")
             token_freqs = pre_tokenize_chunk(chunk, special_tokens)
 
-            find_sum_pairs(token_freqs)
+            pair_freqs = find_sum_pairs(token_freqs)
 
 
 def _initialize_vocab(special_tokens: list[str]) -> dict[int,bytes]:
@@ -144,7 +145,7 @@ def train_bpe(
 
 if __name__ == "__main__":
     train_bpe(
-        input_path="test.txt",
+        input_path="cs336_basics/test.txt",
         vocab_size=10000,
         special_tokens=["<|endoftext|>"]
     )

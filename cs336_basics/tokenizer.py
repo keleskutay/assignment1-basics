@@ -12,14 +12,14 @@ class Tokenizer:
         self.vocab = vocab
         self.merges = merges
         self.special_tokens = special_tokens
-    
-    def _invert_vocab(self):
-        return {v:k for k,v in self.vocab.items()}
+
+        self.ranks = {pair: i for i, pair in enumerate(merges)}
+
+        self.inverse_vocab = {v:k for k,v in self.vocab.items()}
+
 
     def _merge(self, pre_token: tuple[bytes, ...]) -> list[bytes]:
         
-        ranks = {pair: i for i, pair in enumerate(self.merges)}
-
         while True:
             best_rank = float("inf")
             best_index = None
@@ -27,8 +27,8 @@ class Tokenizer:
             for i in range(len(pre_token) -1 ):
                 pair = (pre_token[i], pre_token[i+1])
                 
-                if pair in ranks:
-                    rank = ranks[pair]
+                if pair in self.ranks:
+                    rank = self.ranks[pair]
                     if rank is not None and rank < best_rank:
                         best_rank = rank
                         best_index = i
@@ -74,13 +74,13 @@ class Tokenizer:
         tokens = self._pre_tokenize(text)
         for pre_token in tokens:
             if self.special_tokens and pre_token.decode() in self.special_tokens:
-                token_ids.append(self._invert_vocab()[pre_token])
+                token_ids.append(self.inverse_vocab[pre_token])
                 continue
 
             initial_pre_token = tuple(bytes([b]) for b in pre_token)
             merged = self._merge(initial_pre_token)
             for byte in merged:
-                token_ids.append(self._invert_vocab()[byte])
+                token_ids.append(self.inverse_vocab[byte])
 
         return token_ids
     

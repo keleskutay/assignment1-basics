@@ -1,3 +1,14 @@
+Tests:
+  Tokenizer: <img width="1089" height="633" alt="image" src="https://github.com/user-attachments/assets/c0aea135-b48d-4e08-8aa4-b2744e80f45a" />
+
+
+
+
+
+
+
+
+
 # CS336 Spring 2025 Assignment 1: Basics
 
 For a full description of the assignment, see the assignment handout at

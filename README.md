@@ -1,5 +1,11 @@
+Tasks:
+Implement BPE trainer (Done)
+Implement tokenizer (Done)
+
 Tests:
-  Tokenizer: <img width="1089" height="633" alt="image" src="https://github.com/user-attachments/assets/c0aea135-b48d-4e08-8aa4-b2744e80f45a" />
+test_train_bpe: <img width="1163" height="264" alt="image" src="https://github.com/user-attachments/assets/7c06530b-f4f1-45a0-80c0-c5e7f534616d" />
+
+test_tokenizer: <img width="1089" height="633" alt="image" src="https://github.com/user-attachments/assets/c0aea135-b48d-4e08-8aa4-b2744e80f45a" />
 
 
 

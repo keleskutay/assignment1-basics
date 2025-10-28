@@ -3,6 +3,8 @@ import cs336_basics.BPE
 import regex as re
 import multiprocessing
 import pickle
+import json
+from tests.common import gpt2_bytes_to_unicode
 
 #regex based pre-tokenizer used by GPT2
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -17,6 +19,14 @@ class Tokenizer:
 
         self.inverse_vocab = {v:k for k,v in self.vocab.items()}
 
+        
+        if special_tokens:
+            self.special_tokens = sorted(special_tokens, key=len, reverse=True)
+            for token in special_tokens:
+                token_byte = token.encode("utf-8")
+                if token_byte not in self.inverse_vocab:
+                    insert_max = max(vocab.keys()) + 1
+                    self.vocab[insert_max] = token_byte
 
     def _merge(self, pre_token: tuple[bytes, ...]) -> list[bytes]:
         
@@ -28,7 +38,7 @@ class Tokenizer:
                 pair = (pre_token[i], pre_token[i+1])
                 
                 if pair in self.ranks:
-                    rank = self.ranks[pair]
+                    rank = self.ranks.get(pair)
                     if rank is not None and rank < best_rank:
                         best_rank = rank
                         best_index = i
@@ -42,23 +52,56 @@ class Tokenizer:
 
     def _pre_tokenize(self, text: str) -> tuple[bytes]:
         pre_tokenized_text = tuple()
-
-        #Split if special token exists
-        escape = [re.escape(t) for t in self.special_tokens] if self.special_tokens else ""
-        pattern = f"({'|'.join(escape)})"
-        splitted = re.split(pattern, text)
         
-        for txt in splitted:
-            if self.special_tokens and txt in self.special_tokens:
-                pre_tokenized_text+= tuple((txt.encode("utf-8"),))
-            else:
-                pre_tokenized_text+= tuple(i.encode("utf-8") for i in re.compile(PAT).findall(txt))
-
+        pre_tokenized_text+= tuple(i.encode("utf-8") for i in re.compile(PAT).findall(text))
+                
         return pre_tokenized_text
 
     @classmethod
     def from_files(cls, vocab_filepath: str, merges_filepath: str, special_tokens: list[str] | None) -> Self:
-        raise NotImplementedError
+        gpt2_byte_decoder = {v: k for k, v in gpt2_bytes_to_unicode().items()}
+        with open(vocab_filepath) as vocab_f:
+            gpt2_vocab = json.load(vocab_f)
+        gpt2_bpe_merges = []
+        with open(merges_filepath) as f:
+            for line in f:
+                cleaned_line = line.rstrip()
+                if cleaned_line and len(cleaned_line.split(" ")) == 2:
+                    gpt2_bpe_merges.append(tuple(cleaned_line.split(" ")))
+        # The GPT-2 tokenizer uses a remapped unicode encoding for bytes. Let's
+        # just return the original bytes, so we don't force students to use
+        # any particular encoding scheme.
+        vocab = {
+            gpt2_vocab_index: bytes([gpt2_byte_decoder[token] for token in gpt2_vocab_item])
+            for gpt2_vocab_item, gpt2_vocab_index in gpt2_vocab.items()
+        }
+        # If any of the special tokens don't exist in the vocab, append them to the vocab.
+        if special_tokens:
+            for special_token in special_tokens:
+                byte_encoded_special_token = special_token.encode("utf-8")
+                if byte_encoded_special_token not in set(vocab.values()):
+                    vocab[len(vocab)] = byte_encoded_special_token
+
+        merges = [
+            (
+                bytes([gpt2_byte_decoder[token] for token in merge_token_1]),
+                bytes([gpt2_byte_decoder[token] for token in merge_token_2]),
+            )
+            for merge_token_1, merge_token_2 in gpt2_bpe_merges
+        ]
+
+        return cls(vocab, merges, special_tokens)
+    
+    def _encode_chunk(self, text: str) -> list[int]:
+        token_ids = []
+
+        tokens = self._pre_tokenize(text)
+        for token in tokens:
+                initial_pre_token = tuple(bytes([b]) for b in token)
+                merged = self._merge(initial_pre_token)
+                for byte in merged:
+                    token_ids.append(self.inverse_vocab.get(byte))
+        return token_ids
     
     def encode(self, text: str) -> list[int]:
         """
@@ -70,18 +113,20 @@ class Tokenizer:
         Returns:
             list[int]: Sequence of token ID's.
         """
+
         token_ids = []
-        tokens = self._pre_tokenize(text)
-        for pre_token in tokens:
-            if self.special_tokens and pre_token.decode() in self.special_tokens:
-                token_ids.append(self.inverse_vocab[pre_token])
-                continue
+        if not self.special_tokens:
+            return self._encode_chunk(text)
+        else:
+            escape = [re.escape(t) for t in self.special_tokens]
+            pattern = f"(" + '|'.join(escape) + ")"
+            splitted = re.split(pattern, text)
 
-            initial_pre_token = tuple(bytes([b]) for b in pre_token)
-            merged = self._merge(initial_pre_token)
-            for byte in merged:
-                token_ids.append(self.inverse_vocab[byte])
-
+            for part in splitted:
+                if part in self.special_tokens:
+                    token_ids.append(self.inverse_vocab.get(part.encode("utf-8")))
+                else:
+                    token_ids.extend(self._encode_chunk(part))
         return token_ids
     
     def encode_iterable(self, iterable : Iterable[str]) -> Iterator[int]:
@@ -117,15 +162,16 @@ class Tokenizer:
 
 
 if __name__ == "__main__":
-    vocab,merges = cs336_basics.BPE.train_bpe(
-        input_path="tests/fixtures/tinystories_sample.txt",
-        vocab_size=10000,
-        special_tokens=["<|endoftext|>"]
+    tokenizer = Tokenizer.from_files(
+        vocab_filepath="tests/fixtures/gpt2_vocab.json",
+        merges_filepath="tests/fixtures/gpt2_merges.txt",
+        special_tokens=None
     )
     
-    inst = Tokenizer(vocab, merges, special_tokens=["<|endoftext|>"])
 
-    ee = inst.encode("Hello, how are you?")
-    print([inst.decode([x]) for x in ee])
+    with open("cs336_basics/test.txt") as f:
+        corpus_contents = f.read()
+
+    print(tokenizer.encode(corpus_contents))
     #print(inst._pre_tokenize("the cat ate <|endoftext|> dasdas"))
     #print(inst.encode("the cat ate <|endoftext|>"))

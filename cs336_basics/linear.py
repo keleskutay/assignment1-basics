@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import math
+from einops import einsum
 
 # y = Wx
 class Linear(nn.Module):
@@ -12,7 +13,7 @@ class Linear(nn.Module):
         self.device = device
         self.dtype = dtype
 
-        W = torch.empty((in_features + out_features), device=device dtype=dtype)
+        W = torch.empty((out_features , in_features), device=device, dtype=dtype)
         std = math.sqrt(2.0 / (in_features + out_features))
 
         min_cutoff = -3 * std
@@ -24,7 +25,8 @@ class Linear(nn.Module):
         self.weight = nn.Parameter(W)
 
     def forward(self, x: torch.Tensor):
-        pass
+        y = einsum(self.weight, x, 'out_dim in_dim, ... in_dim -> ... out_dim')
+        return y
 
 
 if __name__ == '__main__':

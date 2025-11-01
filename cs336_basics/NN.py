@@ -29,6 +29,30 @@ class Linear(nn.Module):
         return y
 
 
+class Embedding(nn.Module):
+    def __init__(self, num_embeddings: int, embedding_dim: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+        super().__init__()
+        self.num_embeddings = num_embeddings
+        self.num_embeddings = embedding_dim
+        self.device = device
+        self.dtype = dtype
+
+        weight = torch.empty((num_embeddings , embedding_dim), dtype=dtype, device=device)
+
+        std = math.sqrt(1)
+
+        min_cutoff = -3
+        max_cutoff = 3
+
+        torch.nn.init.trunc_normal_(weight, mean = 0, std = std, a = min_cutoff, b = max_cutoff)
+
+        self.weight = nn.Parameter(weight)
+    
+    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
+        return self.weight[token_ids]
+
+
+
 if __name__ == '__main__':
     test = Linear(1,2)
     print(test.weight)

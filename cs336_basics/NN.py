@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import math
-from einops import einsum
+from einops import einsum, reduce
 
 # y = Wx
 class Linear(nn.Module):
@@ -51,8 +51,27 @@ class Embedding(nn.Module):
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         return self.weight[token_ids]
 
+class RMSNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device = None, dtype = None):
+        super().__init__()
+
+        self.eps = eps
+        self.d_model = d_model
+
+        self.weight = nn.Parameter(torch.ones(d_model, device=device, dtype=dtype))
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        in_dtype = x.dtype
+        x = x.to(torch.float32)
+
+        rms = torch.sqrt(reduce(x ** 2, '... i -> ... ()', 'mean')) + self.eps
+
+        result = x * self.weight / rms
+
+        return result.to(in_dtype)
+
 
 
 if __name__ == '__main__':
-    test = Linear(1,2)
-    print(test.weight)
+    test = RMSNorm(3)
+    print(test.forward(torch.Tensor([1,2,3])))

@@ -3,6 +3,9 @@ import torch
 import math
 from einops import einsum, reduce
 
+def silu(x: torch.Tensor):
+    return x * torch.sigmoid(x)
+
 # y = Wx
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device=None, dtype=None):
@@ -70,8 +73,25 @@ class RMSNorm(nn.Module):
 
         return result.to(in_dtype)
 
+class SwiGLU(nn.Module):
+    def __init__(self, d_model: int, d_ff: int, device = None, dtype= None):
+        super().__init__()
+
+        self.d_model = d_model
+        self.d_ff = d_ff
+
+        self.W1 = Linear(d_model, d_ff)
+        self.W2 = Linear(d_ff, d_model)
+        self.W3 = Linear(d_model, d_ff)
+
+    def forward(self, x : torch.Tensor):
+        l1 = self.W1(x)
+        
+        return self.W2(silu(l1) * self.W3(x))
+
+
 
 
 if __name__ == '__main__':
-    test = RMSNorm(3)
-    print(test.forward(torch.Tensor([1,2,3])))
+    test = SwiGLU(5,5)
+    print(test.state_dict())

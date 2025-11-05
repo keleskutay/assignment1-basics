@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import math
-from einops import einsum, reduce
+from einops import einsum, reduce, rearrange
 
 def silu(x: torch.Tensor):
     return x * torch.sigmoid(x)
@@ -89,9 +89,38 @@ class SwiGLU(nn.Module):
         
         return self.W2(silu(l1) * self.W3(x))
 
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device | None = None):
+        super().__init__()
+
+        self.d_k = d_k
+        
+        positions = torch.arange(max_seq_len, device=device).unsqueeze(1)
+        freqs = torch.arange(0, d_k, 2, device=device) / d_k
+        inv_freq = 1.0 / (theta ** freqs)
+
+        angles = positions * inv_freq
+        
+        self.register_buffer('cos', angles.cos().to(dtype=None), persistent=False)
+        self.register_buffer('sin', angles.sin().to(dtype=None), persistent=False)
+
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        cos_p = self.cos[token_positions]
+        sin_p = self.sin[token_positions]
+
+        x1,x2 = x[..., 0::2], x[..., 1::2]
+
+        x_rot_even = x1 * cos_p - x2 * sin_p
+        x_rot_odd = x1 * sin_p + x2 * cos_p
+
+        x_rot = rearrange([x_rot_even, x_rot_odd], "b ... -> ... b")
+        x_out = rearrange(x_rot, "... d1 d2 -> ... (d1 d2)")
+
+        return x_out
 
 
 
 if __name__ == '__main__':
-    test = SwiGLU(5,5)
-    print(test.state_dict())
+    test = RotaryPositionalEmbedding(1000.0,10,10)
+    l = test.forward(torch.arange(10), torch.arange(10))
+    print(l)

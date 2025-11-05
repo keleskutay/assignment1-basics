@@ -6,6 +6,12 @@ from einops import einsum, reduce, rearrange
 def silu(x: torch.Tensor):
     return x * torch.sigmoid(x)
 
+def softmax(x: torch.Tensor, i: int):
+    x_max = torch.max(x, keepdim=True, dim=i).values
+    x_exp = torch.exp(x - x_max)
+    return x_exp / x_exp.sum(dim=i, keepdim=True)
+
+
 # y = Wx
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device=None, dtype=None):
